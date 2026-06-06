@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "backtesting-python"
-version = "0.1.0"
+version = "0.2.0"
 description = "Vectorized backtesting engine for trading strategies in Python — by Viprasol Tech."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -28,10 +28,16 @@ classifiers = [
   "Programming Language :: Python :: 3.13",
   "Topic :: Office/Business :: Financial :: Investment",
 ]
-dependencies = ["numpy>=1.26", "pydantic>=2.6", "typer>=0.12", "rich>=13.7"]
+dependencies = [
+  "numpy>=1.26",
+  "pandas>=2.0",
+  "pydantic>=2.6",
+  "typer>=0.12",
+  "rich>=13.7",
+]
 
 [project.optional-dependencies]
-dev = ["ruff>=0.4", "mypy>=1.10", "pytest>=8.0", "pytest-cov>=5.0"]
+dev = ["ruff>=0.4", "mypy>=1.10", "pytest>=8.0", "pytest-cov>=5.0", "pandas-stubs>=2.0"]
 
 [project.scripts]
 backtesting-python = "backtesting_python.cli:app"
@@ -57,6 +63,10 @@ ignore = ["B008", "B027", "UP042"]
 python_version = "3.11"
 strict = true
 plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = ["pandas", "pandas.*"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 addopts = "-q"

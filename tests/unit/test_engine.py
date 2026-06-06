@@ -82,7 +82,7 @@ def test_run_backtest_rejects_wrong_length_positions() -> None:
 
 
 def test_run_backtest_rejects_invalid_positions() -> None:
-    with pytest.raises(ValueError, match="0 or 1"):
+    with pytest.raises(ValueError, match=r"within \[0, 1\]"):
         run_backtest([1.0, 2.0], lambda p: [2, 0])
 
 
@@ -106,3 +106,50 @@ def test_moving_average_crossover_validates_windows() -> None:
         moving_average_crossover([1.0, 2.0, 3.0], fast=30, slow=10)
     with pytest.raises(ValueError, match="positive"):
         moving_average_crossover([1.0, 2.0, 3.0], fast=0, slow=10)
+
+
+def test_result_reports_full_exposure_when_always_long() -> None:
+    prices = [100.0, 110.0, 121.0]
+    result = run_backtest(prices, _always_long)
+    assert result.exposure == pytest.approx(1.0)
+    # An always-long strategy tracks buy-and-hold returns exactly.
+    assert result.strategy_total_return == pytest.approx(result.buy_hold_total_return)
+    assert result.sortino_ratio >= 0.0
+
+
+def test_zero_exposure_when_always_flat() -> None:
+    result = run_backtest([100.0, 90.0, 120.0], _always_flat)
+    assert result.exposure == 0.0
+    assert result.cagr == 0.0
+
+
+def test_fractional_positions_scale_returns() -> None:
+    # Half-invested through a +10% then +10% move: each bar earns +5%.
+    prices = [100.0, 110.0, 121.0]
+    result = run_backtest(prices, lambda p: [0.5, 0.5, 0.5])
+    # (1.05)(1.05) - 1 = 0.1025
+    assert result.strategy_total_return == pytest.approx(0.1025)
+
+
+def test_transaction_costs_reduce_returns() -> None:
+    prices = [100.0, 110.0, 110.0]
+    # Enter long at bar 0 (turnover 1.0 from 0->... actually first diff is at idx 1).
+    no_cost = run_backtest(prices, lambda p: [1, 1, 0])
+    with_cost = run_backtest(prices, lambda p: [1, 1, 0], cost_per_turnover=0.01)
+    assert with_cost.strategy_total_return < no_cost.strategy_total_return
+    assert with_cost.total_costs > 0.0
+
+
+def test_costs_charged_on_turnover_amount() -> None:
+    prices = [100.0, 101.0, 102.0]
+    # One full exit (turnover 1.0) at the last bar, starting equity 1000.
+    result = run_backtest(
+        prices, lambda p: [1, 1, 0], starting_equity=1000.0, cost_per_turnover=0.02
+    )
+    # turnover sum = |1-1| + |0-1| = 1.0 ; cost fraction 0.02 -> $20 on $1000.
+    assert result.total_costs == pytest.approx(20.0)
+
+
+def test_negative_cost_rejected() -> None:
+    with pytest.raises(ValueError, match="non-negative"):
+        run_backtest([1.0, 2.0], _always_long, cost_per_turnover=-0.1)

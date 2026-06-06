@@ -15,9 +15,15 @@ import numpy as np
 from numpy.typing import NDArray
 
 __all__ = [
+    "annualized_return",
+    "annualized_volatility",
+    "cagr",
+    "calmar_ratio",
     "equity_curve",
+    "exposure",
     "max_drawdown",
     "sharpe_ratio",
+    "sortino_ratio",
     "total_return",
 ]
 
@@ -121,3 +127,129 @@ def max_drawdown(equity: Sequence[float] | NDArray[np.float64]) -> float:
     running_peak = np.maximum.accumulate(arr)
     drawdowns = arr / running_peak - 1.0
     return float(np.min(drawdowns))
+
+
+def sortino_ratio(
+    returns: Sequence[float] | NDArray[np.float64],
+    periods_per_year: int = 252,
+    risk_free_rate: float = 0.0,
+) -> float:
+    """Compute the annualised Sortino ratio of a returns series.
+
+    The Sortino ratio is like the Sharpe ratio but divides the mean excess
+    return by the *downside* deviation (the volatility of negative excess
+    returns only), rewarding strategies that are not penalised for upside
+    swings.
+
+    Args:
+        returns: Per-period simple returns.
+        periods_per_year: Number of return periods in a year, used to annualise.
+        risk_free_rate: Per-period risk-free rate to subtract from each return.
+
+    Returns:
+        The annualised Sortino ratio. Returns ``0.0`` when there are fewer than
+        two observations or when there is no downside deviation.
+    """
+    arr = _as_array(returns) - float(risk_free_rate)
+    if arr.size < 2:
+        return 0.0
+    downside = np.minimum(arr, 0.0)
+    downside_dev = float(np.sqrt(np.mean(np.square(downside))))
+    if downside_dev == 0.0:
+        return 0.0
+    mean = float(np.mean(arr))
+    return mean / downside_dev * float(np.sqrt(periods_per_year))
+
+
+def annualized_return(
+    returns: Sequence[float] | NDArray[np.float64],
+    periods_per_year: int = 252,
+) -> float:
+    """Geometrically annualise a series of per-period returns (CAGR).
+
+    Args:
+        returns: Per-period simple returns.
+        periods_per_year: Number of return periods in a year.
+
+    Returns:
+        The compound annual growth rate. Returns ``0.0`` for an empty series.
+        Returns ``-1.0`` if the equity is fully wiped out.
+    """
+    arr = _as_array(returns)
+    if arr.size == 0:
+        return 0.0
+    growth = float(np.prod(1.0 + arr))
+    if growth <= 0.0:
+        return -1.0
+    years = arr.size / float(periods_per_year)
+    if years == 0.0:
+        return 0.0
+    return float(growth ** (1.0 / years) - 1.0)
+
+
+#: Alias for :func:`annualized_return` using the common finance acronym.
+cagr = annualized_return
+
+
+def annualized_volatility(
+    returns: Sequence[float] | NDArray[np.float64],
+    periods_per_year: int = 252,
+) -> float:
+    """Annualise the standard deviation of a returns series.
+
+    Args:
+        returns: Per-period simple returns.
+        periods_per_year: Number of return periods in a year.
+
+    Returns:
+        The annualised volatility. Returns ``0.0`` for fewer than two points.
+    """
+    arr = _as_array(returns)
+    if arr.size < 2:
+        return 0.0
+    return float(np.std(arr, ddof=1) * np.sqrt(periods_per_year))
+
+
+def calmar_ratio(
+    returns: Sequence[float] | NDArray[np.float64],
+    periods_per_year: int = 252,
+) -> float:
+    """Compute the Calmar ratio: annualised return over max drawdown.
+
+    The Calmar ratio divides the compound annual growth rate by the absolute
+    value of the maximum drawdown, measuring return per unit of worst-case
+    pain.
+
+    Args:
+        returns: Per-period simple returns.
+        periods_per_year: Number of return periods in a year.
+
+    Returns:
+        The Calmar ratio. Returns ``0.0`` when the strategy has no drawdown
+        (e.g. a flat or monotonically rising curve) or too few observations.
+    """
+    arr = _as_array(returns)
+    if arr.size == 0:
+        return 0.0
+    curve = equity_curve(arr, 1.0)
+    mdd = max_drawdown(curve)
+    if mdd == 0.0:
+        return 0.0
+    return annualized_return(arr, periods_per_year) / abs(mdd)
+
+
+def exposure(positions: Sequence[float] | NDArray[np.float64]) -> float:
+    """Compute time-in-market exposure as the fraction of nonzero positions.
+
+    Args:
+        positions: A sequence of target positions (any sizing). A bar counts as
+            "in market" when its position is nonzero.
+
+    Returns:
+        The fraction of bars with a nonzero position, in ``[0.0, 1.0]``.
+        Returns ``0.0`` for an empty series.
+    """
+    arr = _as_array(positions)
+    if arr.size == 0:
+        return 0.0
+    return float(np.count_nonzero(arr) / arr.size)
