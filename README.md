@@ -80,7 +80,9 @@ result = run_backtest(
     cost_per_turnover=0.0005,  # 5 bps per unit of turnover
 )
 
-print(f"Total return:  {result.strategy_total_return:.2%}  (B&H {result.buy_hold_total_return:.2%})")
+print(
+    f"Total return:  {result.strategy_total_return:.2%}  (B&H {result.buy_hold_total_return:.2%})"
+)
 print(f"CAGR:          {result.cagr:.2%}")
 print(f"Sharpe:        {result.sharpe_ratio:.2f}   Sortino: {result.sortino_ratio:.2f}")
 print(f"Calmar:        {result.calmar_ratio:.2f}   Max DD:  {result.max_drawdown:.2%}")
@@ -91,7 +93,10 @@ print(f"Exposure:      {result.exposure:.1%}      Costs:   ${result.total_costs:
 
 ```python
 from backtesting_python import (
-    run_backtest, momentum, volatility_target, write_equity_csv,
+    run_backtest,
+    momentum,
+    volatility_target,
+    write_equity_csv,
 )
 
 prices = [100 + i * 0.5 for i in range(300)]
@@ -117,7 +122,7 @@ price_data = {
 port = run_portfolio_backtest(
     price_data,
     donchian_breakout,
-    weights=[0.5, 0.3, 0.2],   # normalised automatically; equal-weight by default
+    weights=[0.5, 0.3, 0.2],  # normalised automatically; equal-weight by default
 )
 
 print(f"Portfolio CAGR: {port.cagr:.2%}  Sharpe: {port.sharpe_ratio:.2f}")
